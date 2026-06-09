@@ -1,7 +1,7 @@
-country,indicator,subgroup,value
-France,PrEP access,migrants,1
-France,PrEP access,undocumented,0
-France,HIV testing,migrants,1
-Germany,PrEP access,migrants,1
-Germany,PrEP access,undocumented,1
-Germany,HIV testing,migrants,1
+country,domain,indicator,group,weight,si,value,score
+Cyprus,Policy,Right to health,General,2,1,1,2
+Cyprus,Policy,HIV plan updated,General,1,2,1,2
+Cyprus,Policy,Migrants included in HIV plan,Migrants,3,2,1,6
+Cyprus,Clinical,PrEP access,Migrants,5,0,0,0
+Cyprus,Clinical,HIV testing,Migrants,5,2,1,10
+Cyprus,Continuum,ART access,Migrants,5,1.5,1,7.5
