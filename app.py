@@ -1,129 +1,88 @@
 import streamlit as st
+import pandas as pd
+import plotly.express as px
 
-st.set_page_config(page_title="HIV Policy Interpretation Tool", layout="wide")
+st.set_page_config(page_title="HIV Policy Map Europe", layout="wide")
 
-st.title("HIV Continuum of Care for Migrants")
-st.caption("Policy interpretation tool (definition layer, not dataset table)")
+# -------------------------
+# LOAD DATA
+# -------------------------
+df = pd.read_csv("data.csv")
 
-# ---------------- DATA MODEL ----------------
-data = {
-    "Primary Prevention": [
-        {
-            "indicator": "PrEP Access Equity",
-            "meaning": "Assesses whether national policy ensures equal PrEP access for migrants and undocumented migrants.",
-            "migrants": "Included / Not included (based on national law)",
-            "undocumented": "Included / Not included (based on national law)",
-            "free": "Free at point of care: Yes / No",
-            "interpretation": "Measures equity in preventive HIV medication access."
-        },
-        {
-            "indicator": "Condom Distribution Inclusion",
-            "meaning": "Assesses whether migrants are included in national condom distribution programmes.",
-            "migrants": "Included / Not included",
-            "undocumented": "Included / Not included",
-            "free": "Not applicable / Depends on programme",
-            "interpretation": "Measures access to basic prevention commodities."
-        }
-    ],
+# -------------------------
+# SCORE CALCULATION
+# -------------------------
+agg = df.groupby(["country", "indicator"])["value"].mean().reset_index()
+agg["score"] = agg["value"] * 100
 
-    "Secondary Prevention": [
-        {
-            "indicator": "PEP Access Equity",
-            "meaning": "Assesses access to post-exposure prophylaxis for migrants.",
-            "migrants": "Included / Not included",
-            "undocumented": "Included / Not included",
-            "free": "Free at point of care: Yes / No",
-            "interpretation": "Measures emergency HIV prevention accessibility."
-        }
-    ],
+overall = df.groupby("country")["value"].mean().reset_index()
+overall["score"] = overall["value"] * 100
+overall["indicator"] = "Overall Score"
 
-    "Diagnosis": [
-        {
-            "indicator": "HIV Testing Access",
-            "meaning": "Assesses whether migrants can access HIV testing services equally.",
-            "migrants": "Included / Not included",
-            "undocumented": "Included / Not included",
-            "free": "Free at point of care: Yes / No",
-            "interpretation": "Measures early diagnosis accessibility."
-        },
-        {
-            "indicator": "STI Testing Access",
-            "meaning": "Assesses access to STI screening services.",
-            "migrants": "Included / Not included",
-            "undocumented": "Included / Not included",
-            "free": "Free at point of care: Yes / No",
-            "interpretation": "Measures broader sexual health service access."
-        }
-    ],
+map_df = pd.concat([agg, overall])
 
-    "Linkage to Care": [
-        {
-            "indicator": "Care Pathways Availability",
-            "meaning": "Assesses whether structured pathways exist from testing to treatment.",
-            "migrants": "Available / Not available",
-            "undocumented": "Available / Not available",
-            "free": "Not applicable",
-            "interpretation": "Measures continuity of care after diagnosis."
-        }
-    ],
+# -------------------------
+# SIDEBAR FILTER
+# -------------------------
+st.sidebar.title("Filters")
 
-    "Treatment": [
-        {
-            "indicator": "ART Access Equity",
-            "meaning": "Assesses access to antiretroviral therapy for migrants.",
-            "migrants": "Included / Not included",
-            "undocumented": "Included / Not included",
-            "free": "Free at point of care: Yes / No",
-            "interpretation": "Measures treatment access equity."
-        },
-        {
-            "indicator": "ART Initiation Policy",
-            "meaning": "Assesses eligibility for ART regardless of CD4 count.",
-            "migrants": "Eligible / Restricted",
-            "undocumented": "Eligible / Restricted",
-            "free": "Not applicable",
-            "interpretation": "Measures alignment with WHO treat-all strategy."
-        }
-    ],
+indicator = st.sidebar.selectbox(
+    "Select Policy Layer",
+    sorted(map_df["indicator"].unique())
+)
 
-    "Care": [
-        {
-            "indicator": "Primary Healthcare Access",
-            "meaning": "Assesses access to general healthcare services.",
-            "migrants": "Included / Not included",
-            "undocumented": "Included / Not included",
-            "free": "Depends on system",
-            "interpretation": "Measures integration into national health system."
-        }
-    ]
-}
+# -------------------------
+# FILTER DATA
+# -------------------------
+filtered = map_df[map_df["indicator"] == indicator]
 
-# ---------------- UI ----------------
+# -------------------------
+# TITLE
+# -------------------------
+st.title("🌍 HIV Continuum of Care Policy Map for Migrants in Europe")
+st.write("Interactive policy scoring based on national HIV prevention and care access indicators.")
 
-for domain, indicators in data.items():
-    with st.expander(f"🔵 {domain}", expanded=False):
+# -------------------------
+# MAP (Plotly Choropleth)
+# -------------------------
+fig = px.choropleth(
+    filtered,
+    locations="country",
+    locationmode="country names",
+    color="score",
+    color_continuous_scale="RdYlGn",
+    range_color=(0, 100),
+    hover_name="country",
+    title=f"{indicator} (Policy Inclusion Score)"
+)
 
-        for item in indicators:
+st.plotly_chart(fig, use_container_width=True)
 
-            st.markdown("---")
+# -------------------------
+# TABLE VIEW
+# -------------------------
+st.subheader("📊 Country Scores")
 
-            with st.container():
+st.dataframe(
+    filtered.sort_values("score", ascending=False),
+    use_container_width=True
+)
 
-                st.markdown(f"## 🧾 {item['indicator']}")
+# -------------------------
+# EXPLANATION
+# -------------------------
+st.markdown("""
+### 🧾 Scoring system
+- 1 = policy exists / equal access
+- 0 = no access / exclusion
+- Scores are averaged per indicator and scaled 0–100
 
-                # Meaning (VERY IMPORTANT)
-                st.info(f"🧠 {item['meaning']}")
-
-                col1, col2 = st.columns(2)
-
-                with col1:
-                    st.markdown("### 👥 Population Coverage")
-                    st.write("• Migrants:", item["migrants"])
-                    st.write("• Undocumented:", item["undocumented"])
-
-                with col2:
-                    st.markdown("### 💰 Cost / Access Condition")
-                    st.write(item["free"])
-
-                st.markdown("### 📘 Interpretation")
-                st.success(item["interpretation"])
+### 🧩 Layers include:
+- PrEP access
+- PEP access
+- HIV testing
+- STI testing
+- ART treatment
+- Monitoring
+- Primary care access
+""")
