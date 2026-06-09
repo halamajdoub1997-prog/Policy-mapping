@@ -1,88 +1,89 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
+from utils import compute_scores
 
-st.set_page_config(page_title="HIV Policy Map Europe", layout="wide")
+st.set_page_config(layout="wide")
 
-# -------------------------
+# -----------------------
 # LOAD DATA
-# -------------------------
-df = pd.read_csv("data.csv")
+# -----------------------
+df = pd.read_csv("data/indicators.csv")
 
-# -------------------------
-# SCORE CALCULATION
-# -------------------------
-agg = df.groupby(["country", "indicator"])["value"].mean().reset_index()
-agg["score"] = agg["value"] * 100
+df, domain_df, overall_df = compute_scores(df)
 
-overall = df.groupby("country")["value"].mean().reset_index()
-overall["score"] = overall["value"] * 100
-overall["indicator"] = "Overall Score"
-
-map_df = pd.concat([agg, overall])
-
-# -------------------------
-# SIDEBAR FILTER
-# -------------------------
+# -----------------------
+# SIDEBAR
+# -----------------------
 st.sidebar.title("Filters")
 
-indicator = st.sidebar.selectbox(
-    "Select Policy Layer",
-    sorted(map_df["indicator"].unique())
+domain_filter = st.sidebar.selectbox(
+    "Select domain",
+    ["Overall"] + list(df["domain"].unique())
 )
 
-# -------------------------
-# FILTER DATA
-# -------------------------
-filtered = map_df[map_df["indicator"] == indicator]
+# -----------------------
+# MAP DATA
+# -----------------------
+if domain_filter == "Overall":
+    map_df = overall_df
+    color_col = "total_score"
+else:
+    map_df = domain_df[domain_df["domain"] == domain_filter]
+    map_df = map_df.groupby("country")["domain_score"].mean().reset_index()
+    color_col = "domain_score"
 
-# -------------------------
-# TITLE
-# -------------------------
-st.title("🌍 HIV Continuum of Care Policy Map for Migrants in Europe")
-st.write("Interactive policy scoring based on national HIV prevention and care access indicators.")
+# -----------------------
+# EUROPE MAP
+# -----------------------
+st.title("🌍 HIV Policy Map for Migrants in Europe")
 
-# -------------------------
-# MAP (Plotly Choropleth)
-# -------------------------
 fig = px.choropleth(
-    filtered,
+    map_df,
     locations="country",
     locationmode="country names",
-    color="score",
+    color=color_col,
     color_continuous_scale="RdYlGn",
     range_color=(0, 100),
-    hover_name="country",
-    title=f"{indicator} (Policy Inclusion Score)"
 )
 
 st.plotly_chart(fig, use_container_width=True)
 
-# -------------------------
-# TABLE VIEW
-# -------------------------
-st.subheader("📊 Country Scores")
+# -----------------------
+# CLICK-LIKE SIMULATION (Streamlit limitation workaround)
+# -----------------------
+st.subheader("🔎 Select Country")
 
-st.dataframe(
-    filtered.sort_values("score", ascending=False),
-    use_container_width=True
-)
+country = st.selectbox("Choose a country", sorted(df["country"].unique()))
 
-# -------------------------
-# EXPLANATION
-# -------------------------
-st.markdown("""
-### 🧾 Scoring system
-- 1 = policy exists / equal access
-- 0 = no access / exclusion
-- Scores are averaged per indicator and scaled 0–100
+country_df = df[df["country"] == country]
+country_domain = domain_df[domain_df["country"] == country]
 
-### 🧩 Layers include:
-- PrEP access
-- PEP access
-- HIV testing
-- STI testing
-- ART treatment
-- Monitoring
-- Primary care access
-""")
+# -----------------------
+# COUNTRY PAGE
+# -----------------------
+st.markdown(f"## 🇪🇺 {country}")
+
+overall_score = overall_df[overall_df["country"] == country]["total_score"].values[0]
+
+st.metric("Overall Score", f"{overall_score:.1f} / 100")
+
+# -----------------------
+# DOMAIN SCORES
+# -----------------------
+st.subheader("📊 Domain Scores")
+
+st.dataframe(country_domain[["domain", "domain_score"]])
+
+# -----------------------
+# INDICATOR BREAKDOWN
+# -----------------------
+st.subheader("📌 Indicator Breakdown")
+
+st.dataframe(country_df[[
+    "domain",
+    "indicator",
+    "weight",
+    "si",
+    "weighted"
+]])
