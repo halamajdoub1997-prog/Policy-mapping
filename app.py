@@ -8,7 +8,7 @@ st.set_page_config(layout="wide")
 # -----------------------
 # LOAD DATA
 # -----------------------
-df = pd.read_csv("data/indicators.csv")
+df = pd.read_csv("data.csv")
 
 df, domain_df, overall_df = compute_scores(df)
 
